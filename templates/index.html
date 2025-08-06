@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting Scheduler</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        #sidebar {
+            width: 300px;
+            background-color: #f4f4f4;
+            border-right: 1px solid #ddd;
+            box-sizing: border-box;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 100;
+        }
+        #sidebar.closed {
+            transform: translateX(-100%);
+        }
+        #sidebar-toggle-btn {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            z-index: 101;
+            border-radius: 4px;
+        }
+        #meetings-tab {
+            padding: 10px 20px;
+            background-color: #ddd;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+        #meetings-dropdown {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #eee;
+        }
+        #meetings-dropdown.open {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #meetings-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #meetings-list li {
+            padding: 10px 20px;
+            border-bottom: 1px solid #ccc;
+        }
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            overflow: hidden;
+        }
+        #messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+        }
+        .message {
+            margin-bottom: 15px;
+        }
+        .message.user {
+            text-align: right;
+        }
+        .message.bot {
+            text-align: left;
+            color: #555;
+        }
+        #input-container {
+            display: flex;
+            padding: 10px 20px;
+            box-sizing: border-box;
+        }
+        #command-input {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #send-btn {
+            margin-left: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #send-btn:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+        #meetings-tab-toggle-icon {
+            font-size: 18px;
+            user-select: none;
+        }
+        #mic-btn {
+            margin-left: 10px;
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #28a745;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #mic-btn.listening {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <button id="sidebar-toggle-btn">☰</button>
+    <div id="sidebar">
+        <div id="meetings-tab">
+            Meetings
+            <span id="meetings-tab-toggle-icon">▼</span>
+        </div>
+        <div id="meetings-dropdown">
+            <ul id="meetings-list"></ul>
+        </div>
+    </div>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="input-container">
+            <input type="text" id="command-input" placeholder="Type your command here..." />
+            <button id="send-btn">Send</button>
+            <button id="mic-btn" title="Speak your command">🎤</button>
+        </div>
+    </div>
+
+<script>
+    const messagesEl = document.getElementById('messages');
+    const meetingsListEl = document.getElementById('meetings-list');
+    const commandInput = document.getElementById('command-input');
+    const sendBtn = document.getElementById('send-btn');
+    const micBtn = document.getElementById('mic-btn');
+
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+    const meetingsTab = document.getElementById('meetings-tab');
+    const meetingsDropdown = document.getElementById('meetings-dropdown');
+    const meetingsTabToggleIcon = document.getElementById('meetings-tab-toggle-icon');
+
+    function addMessage(text, sender, isHtml = false) {
+        const msgEl = document.createElement('div');
+        msgEl.classList.add('message', sender);
+        if (isHtml) {
+            msgEl.innerHTML = text;
+        } else {
+            msgEl.textContent = text;
+        }
+        messagesEl.appendChild(msgEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function fetchMeetings() {
+        const res = await fetch('/meetings');
+        const meetings = await res.json();
+        meetingsListEl.innerHTML = '';
+        meetings.forEach(m => {
+            const li = document.createElement('li');
+            li.textContent = `${m.person} at ${m.time}`;
+            meetingsListEl.appendChild(li);
+        });
+    }
+
+    async function fetchLearningStats() {
+        try {
+            const res = await fetch('/learning/stats');
+            const stats = await res.json();
+            console.log('Learning stats:', stats);
+        } catch (error) {
+            console.error('Error fetching learning stats:', error);
+        }
+    }
+
+    async function sendCommand(commandText) {
+        const command = commandText || commandInput.value.trim();
+        if (!command) return;
+        addMessage(command, 'user');
+        sendBtn.disabled = true;
+        const res = await fetch('/schedule', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({command})
+        });
+        const data = await res.json();
+        
+        if (data.needs_learning) {
+            addLearningFeedback(command, data);
+        } else {
+            addMessage(data.message, 'bot');
+            speakMessage(data.message);
+        }
+        
+        if (data.missing_time) {
+            // Focus input and prefill with partial command for time input
+            commandInput.value = '';
+            commandInput.placeholder = data.message;
+            commandInput.focus();
+        } else if (!commandText) {
+            commandInput.value = '';
+            commandInput.placeholder = 'Type your command here...';
+        }
+        sendBtn.disabled = false;
+        await fetchMeetings();
+    }
+
+    function addLearningFeedback(originalCommand, data) {
+        const feedbackHtml = `
+            <div>
+                <p>${data.message}</p>
+                <div style="margin: 10px 0;">
+                    <input type="text" id="correction-input" placeholder="Correct command format: e.g., 'Schedule meeting with John at 3pm'" 
+                           style="width: 70%; padding: 5px; margin-right: 10px;">
+                    <button onclick="submitCorrection('${originalCommand}')" style="padding: 5px 10px;">Teach Me</button>
+                </div>
+                <button onclick="skipLearning()" style="font-size: 12px; opacity: 0.7;">Skip for now</button>
+            </div>
+        `;
+        addMessage(feedbackHtml, 'bot', true);
+    }
+
+    async function submitCorrection(originalCommand) {
+        const correctionInput = document.getElementById('correction-input');
+        const correctedCommand = correctionInput.value.trim();
+        
+        if (!correctedCommand) {
+            alert('Please provide a corrected command format');
+            return;
+        }
+
+        // Parse the corrected command to extract data
+        const personMatch = correctedCommand.match(/with\s+([\w\s]+?)\s+at/i);
+        const timeMatch = correctedCommand.match(/at\s+([\d: ]+[ap]m|\d{1,2})/i);
+        
+        if (!personMatch || !timeMatch) {
+            alert('Please use format: "Schedule meeting with [name] at [time]"');
+            return;
+        }
+
+        const correctedData = {
+            type: 'schedule',
+            person: personMatch[1].trim(),
+            time: timeMatch[1].trim()
+        };
+
+        const res = await fetch('/learning/feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                original_command: originalCommand,
+                corrected_data: correctedData
+            })
+        });
+
+        const result = await res.json();
+        if (result.success) {
+            addMessage(`✅ Thank you! I've learned from your correction. Next time I'll understand "${originalCommand}" better.`, 'bot');
+            correctionInput.value = '';
+            await fetchLearningStats();
+        } else {
+            addMessage('❌ Failed to save learning. Please try again.', 'bot');
+        }
+    }
+
+    function skipLearning() {
+        addMessage("No problem! I'll try to understand better next time.", 'bot');
+    }
+
+    function speakMessage(message) {
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(message);
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
+    sendBtn.addEventListener('click', async () => {
+        await sendCommand();
+    });
+    commandInput.addEventListener('keydown', async e => {
+        if (e.key === 'Enter') {
+            await sendCommand();
+        }
+    });
+
+    sidebarToggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('closed');
+    });
+
+    meetingsTab.addEventListener('click', () => {
+        const isOpen = meetingsDropdown.classList.toggle('open');
+        meetingsTabToggleIcon.textContent = isOpen ? '▲' : '▼';
+    });
+
+    micBtn.addEventListener('click', () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Speech recognition not supported in this browser.');
+            return;
+        }
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        micBtn.classList.add('listening');
+        recognition.start();
+
+        recognition.onresult = (event) => {
+            const speechResult = event.results[0][0].transcript;
+            micBtn.classList.remove('listening');
+            sendCommand(speechResult);
+        };
+
+        recognition.onerror = (event) => {
+            micBtn.classList.remove('listening');
+            alert('Error occurred in speech recognition: ' + event.error);
+        };
+
+        recognition.onend = () => {
+            micBtn.classList.remove('listening');
+        };
+    });
+
+    // Initial load
+    fetchMeetings();
+    fetchLearningStats();
+</script>
+</body>
+</html>
