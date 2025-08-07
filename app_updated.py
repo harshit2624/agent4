@@ -17,7 +17,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS meetings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             person TEXT,
-            time TEXT
+            time TEXT,
+            agenda TEXT
         )
     """)
     conn.commit()
@@ -36,24 +37,25 @@ def parse_command(command):
     if suggestion:
         return suggestion['suggestion'], suggestion
     
-    # Handle scheduling commands with time - improved regex patterns
+    # Handle scheduling commands with time and optional agenda - improved regex patterns
     command = command.lower()
     
-    # Pattern 1: "schedule meeting with [name] at [time]"
-    match = re.search(r'(?:schedule|meet|meeting)?\s*meeting?\s*with\s+([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?', command)
+    # Pattern 1: "schedule meeting with [name] at [time] for [agenda]"
+    match = re.search(r'(?:schedule|meet|meeting)?\s*meeting?\s*with\s+([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?(?:\s+for\s+(.+?))?(?:\s*$)', command)
     if not match:
-        # Pattern 2: "schedule [name] at [time]"
-        match = re.search(r'(?:schedule|meet|meeting)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?', command)
+        # Pattern 2: "schedule [name] at [time] for [agenda]"
+        match = re.search(r'(?:schedule|meet|meeting)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?(?:\s+for\s+(.+?))?(?:\s*$)', command)
     if not match:
         # Pattern 3: More flexible matching for various formats
-        match = re.search(r'(?:schedule|meet|meeting)?\s*(?:meeting)?\s*(?:with)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?', command)
+        match = re.search(r'(?:schedule|meet|meeting)?\s*(?:meeting)?\s*(?:with)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2})(?:\s*(tomorrow))?(?:\s+for\s+(.+?))?(?:\s*$)', command)
     if not match:
         # Pattern 4: Handle cases like "4" or "4pm" or "4:30pm"
-        match = re.search(r'(?:schedule|meet|meeting)?\s*(?:meeting)?\s*(?:with)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?(?:\s*(?:am|pm))?)(?:\s*(tomorrow))?', command)
+        match = re.search(r'(?:schedule|meet|meeting)?\s*(?:meeting)?\s*(?:with)?\s*([\w\s]+?)\s+at\s+(\d{1,2}(?::\d{2})?(?:\s*(?:am|pm))?)(?:\s*(tomorrow))?(?:\s+for\s+(.+?))?(?:\s*$)', command)
     if match:
         person = match.group(1).strip().title()
         time_str = match.group(2).strip()
         tomorrow = match.group(3)
+        agenda = match.group(4).strip() if match.group(4) else None
 
         now = datetime.now()
         time_str = time_str.strip()
@@ -118,7 +120,7 @@ def parse_command(command):
         if tomorrow:
             meeting_time += timedelta(days=1)
 
-        return person, meeting_time
+        return 'schedule', (person, meeting_time, agenda)
     
     # Handle scheduling commands without time (missing time)
     match_person_only = re.search(r'(?:schedule|meet|meeting)?\s*meeting?\s*with\s*([\w\s]+)', command)
@@ -149,11 +151,11 @@ def schedule_meeting():
         # Get today's meetings
         today = datetime.now().date()
         tomorrow = today + timedelta(days=1)
-        cursor.execute("SELECT person, time FROM meetings WHERE date(time) = ? ORDER BY time", (today.isoformat(),))
+        cursor.execute("SELECT person, time, agenda FROM meetings WHERE date(time) = ? ORDER BY time", (today.isoformat(),))
         today_meetings = cursor.fetchall()
         
         # Get all meetings for context
-        cursor.execute("SELECT person, time FROM meetings ORDER BY time")
+        cursor.execute("SELECT person, time, agenda FROM meetings ORDER BY time")
         all_meetings = cursor.fetchall()
         conn.close()
         
@@ -165,9 +167,12 @@ def schedule_meeting():
         
         if today_meetings:
             meeting_list = []
-            for person, time_str in today_meetings:
+            for person, time_str, agenda in today_meetings:
                 meeting_time = datetime.fromisoformat(time_str)
-                meeting_list.append(f"{person} at {meeting_time.strftime('%I:%M %p')}")
+                meeting_info = f"{person} at {meeting_time.strftime('%I:%M %p')}"
+                if agenda:
+                    meeting_info += f" - {agenda}"
+                meeting_list.append(meeting_info)
             
             meetings_text = "\n".join(f"• {meeting}" for meeting in meeting_list)
             return jsonify({
@@ -177,9 +182,12 @@ def schedule_meeting():
         else:
             # Show upcoming meetings if none today
             upcoming_list = []
-            for person, time_str in all_meetings[:5]:  # Show next 5 meetings
+            for person, time_str, agenda in all_meetings[:5]:  # Show next 5 meetings
                 meeting_time = datetime.fromisoformat(time_str)
-                upcoming_list.append(f"{person} at {meeting_time.strftime('%I:%M %p, %d %b')}")
+                meeting_info = f"{person} at {meeting_time.strftime('%I:%M %p, %d %b')}"
+                if agenda:
+                    meeting_info += f" - {agenda}"
+                upcoming_list.append(meeting_info)
             
             meetings_text = "\n".join(f"• {meeting}" for meeting in upcoming_list)
             return jsonify({
@@ -196,16 +204,16 @@ def schedule_meeting():
             'message': f"Schedule meeting with {person} at what time?"
         })
     
-    elif result_type and result_data:
+    elif result_type == 'schedule':
         # Handle scheduling
-        person, meeting_time = result_type, result_data
+        person, meeting_time, agenda = result_data
         if not person:
             return jsonify({'success': False, 'message': 'Could not understand the command.'})
 
         conn = sqlite3.connect("meetings.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO meetings (person, time) VALUES (?, ?)", 
-                       (person, meeting_time.isoformat()))
+        cursor.execute("INSERT INTO meetings (person, time, agenda) VALUES (?, ?, ?)", 
+                       (person, meeting_time.isoformat(), agenda))
         conn.commit()
         conn.close()
 
@@ -242,17 +250,20 @@ def schedule_meeting():
 def get_meetings():
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT person, time FROM meetings ORDER BY time")
+    cursor.execute("SELECT person, time, agenda FROM meetings ORDER BY time")
     meetings = cursor.fetchall()
     conn.close()
     
     formatted_meetings = []
-    for person, time_str in meetings:
+    for person, time_str, agenda in meetings:
         meeting_time = datetime.fromisoformat(time_str)
-        formatted_meetings.append({
+        meeting_data = {
             'person': person,
             'time': meeting_time.strftime('%I:%M %p, %d %b %Y')
-        })
+        }
+        if agenda:
+            meeting_data['agenda'] = agenda
+        formatted_meetings.append(meeting_data)
     
     return jsonify(formatted_meetings)
 

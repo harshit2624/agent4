@@ -1,361 +1,741 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Meeting Scheduler</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Scheduler - Modern & Responsive</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
+        :root {
+            /* Modern Color Palette */
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --danger-color: #ef4444;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --surface-hover: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 0.5rem;
+            --radius-lg: 0.75rem;
+            --transition: all 0.2s ease;
+        }
+
+        * {
             margin: 0;
-            font-family: Arial, sans-serif;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
             height: 100vh;
             overflow: hidden;
-            display: flex;
         }
-        #sidebar {
-            width: 300px;
-            background-color: #f4f4f4;
-            border-right: 1px solid #ddd;
-            box-sizing: border-box;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-            transform: translateX(0);
+
+        /* Mobile-First Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+            transition: var(--transition);
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem;
             display: flex;
-            flex-direction: column;
-            position: relative;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow-sm);
             z-index: 100;
         }
-        #sidebar.closed {
-            transform: translateX(-100%);
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        #sidebar-toggle-btn {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: #007bff;
-            color: white;
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .btn-icon {
+            background: none;
             border: none;
-            padding: 10px;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            color: var(--text-secondary);
             cursor: pointer;
-            font-size: 18px;
-            z-index: 101;
-            border-radius: 4px;
+            transition: var(--transition);
         }
-        #meetings-tab {
-            padding: 10px 20px;
-            background-color: #ddd;
+
+        .btn-icon:hover {
+            background: var(--surface-hover);
+            color: var(--text-primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            overflow-y: auto;
+            background: var(--background);
+        }
+
+        /* Sidebar (Mobile Drawer) */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 280px;
+            height: 100vh;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            transition: var(--transition);
+            z-index: 200;
+            box-shadow: var(--shadow-lg);
+            overflow-y: auto;
+        }
+
+        .sidebar.open {
+            left: 0;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .sidebar-content {
+            padding: 1rem;
+        }
+
+        .meeting-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: var(--transition);
             cursor: pointer;
-            user-select: none;
+        }
+
+        .meeting-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .meeting-card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: bold;
+            margin-bottom: 0.5rem;
         }
-        #meetings-dropdown {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            background-color: #eee;
+
+        .meeting-person {
+            font-weight: 600;
+            color: var(--text-primary);
         }
-        #meetings-dropdown.open {
-            max-height: 300px;
-            overflow-y: auto;
+
+        .meeting-time {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
         }
-        #meetings-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
+
+        .meeting-agenda {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
         }
-        #meetings-list li {
-            padding: 10px 20px;
-            border-bottom: 1px solid #ccc;
-        }
-        #chat-container {
-            flex: 1;
+
+        /* Chat Interface */
+        .chat-container {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
             display: flex;
             flex-direction: column;
-            background-color: #fff;
+            height: 100%;
             overflow: hidden;
         }
-        #messages {
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .chat-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .messages-container {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
-            border-bottom: 1px solid #ddd;
-        }
-        .message {
-            margin-bottom: 15px;
-        }
-        .message.user {
-            text-align: right;
-        }
-        .message.bot {
-            text-align: left;
-            color: #555;
-        }
-        #input-container {
+            padding: 1rem;
             display: flex;
-            padding: 10px 20px;
-            box-sizing: border-box;
+            flex-direction: column;
+            gap: 1rem;
         }
-        #command-input {
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: var(--secondary-color);
+        }
+
+        .message-content {
+            background: var(--surface-hover);
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Input Area */
+        .input-container {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .input-field {
             flex: 1;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            transition: var(--transition);
+            background: var(--background);
         }
-        #send-btn {
-            margin-left: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #007bff;
-            border: none;
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
             color: white;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        #send-btn:disabled {
-            background-color: #aaa;
-            cursor: not-allowed;
-        }
-        #meetings-tab-toggle-icon {
-            font-size: 18px;
-            user-select: none;
-        }
-        #mic-btn {
-            margin-left: 10px;
-            padding: 10px 15px;
-            font-size: 16px;
-            background-color: #28a745;
             border: none;
-            color: white;
-            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        #mic-btn.listening {
-            background-color: #dc3545;
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            padding: 0.75rem;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-hover);
+            color: var(--text-primary);
+        }
+
+        /* Overlay for mobile */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Responsive Design - Tablet and Desktop */
+        @media (min-width: 768px) {
+            .app-container {
+                grid-template-columns: 280px 1fr;
+                grid-template-rows: 1fr;
+            }
+
+            .header {
+                display: none;
+            }
+
+            .sidebar {
+                position: static;
+                left: 0;
+                box-shadow: none;
+                border-right: 1px solid var(--border);
+            }
+
+            .main-content {
+                grid-template-columns: 1fr;
+                padding: 1.5rem;
+            }
+
+            .chat-container {
+                max-height: calc(100vh - 3rem);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .app-container {
+                grid-template-columns: 320px 1fr;
+            }
+
+            .main-content {
+                grid-template-columns: 1fr 400px;
+                gap: 1.5rem;
+            }
+
+            .sidebar {
+                width: 320px;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: #0f172a;
+                --surface: #1e293b;
+                --surface-hover: #334155;
+                --text-primary: #f1f5f9;
+                --text-secondary: #cbd5e1;
+                --text-muted: #64748b;
+                --border: #334155;
+            }
+        }
+
+        /* Accessibility improvements */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Focus styles */
+        :focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
         }
     </style>
 </head>
 <body>
-    <button id="sidebar-toggle-btn">☰</button>
-    <div id="sidebar">
-        <div id="meetings-tab">
-            Meetings
-            <span id="meetings-tab-toggle-icon">▼</span>
-        </div>
-        <div id="meetings-dropdown">
-            <ul id="meetings-list"></ul>
-        </div>
-    </div>
-    <div id="chat-container">
-        <div id="messages"></div>
-        <div id="input-container">
-            <input type="text" id="command-input" placeholder="Type your command here..." />
-            <button id="send-btn">Send</button>
-            <button id="mic-btn" title="Speak your command">🎤</button>
-        </div>
-    </div>
-
-<script>
-    const messagesEl = document.getElementById('messages');
-    const meetingsListEl = document.getElementById('meetings-list');
-    const commandInput = document.getElementById('command-input');
-    const sendBtn = document.getElementById('send-btn');
-    const micBtn = document.getElementById('mic-btn');
-
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-    const meetingsTab = document.getElementById('meetings-tab');
-    const meetingsDropdown = document.getElementById('meetings-dropdown');
-    const meetingsTabToggleIcon = document.getElementById('meetings-tab-toggle-icon');
-
-    function addMessage(text, sender, isHtml = false) {
-        const msgEl = document.createElement('div');
-        msgEl.classList.add('message', sender);
-        if (isHtml) {
-            msgEl.innerHTML = text;
-        } else {
-            msgEl.textContent = text;
-        }
-        messagesEl.appendChild(msgEl);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    async function fetchMeetings() {
-        const res = await fetch('/meetings');
-        const meetings = await res.json();
-        meetingsListEl.innerHTML = '';
-        meetings.forEach(m => {
-            const li = document.createElement('li');
-            li.textContent = `${m.person} at ${m.time}`;
-            meetingsListEl.appendChild(li);
-        });
-    }
-
-    async function fetchLearningStats() {
-        try {
-            const res = await fetch('/learning/stats');
-            const stats = await res.json();
-            console.log('Learning stats:', stats);
-        } catch (error) {
-            console.error('Error fetching learning stats:', error);
-        }
-    }
-
-    async function sendCommand(commandText) {
-        const command = commandText || commandInput.value.trim();
-        if (!command) return;
-        addMessage(command, 'user');
-        sendBtn.disabled = true;
-        const res = await fetch('/schedule', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({command})
-        });
-        const data = await res.json();
-        
-        if (data.needs_learning) {
-            addLearningFeedback(command, data);
-        } else {
-            addMessage(data.message, 'bot');
-            speakMessage(data.message);
-        }
-        
-        if (data.missing_time) {
-            // Focus input and prefill with partial command for time input
-            commandInput.value = '';
-            commandInput.placeholder = data.message;
-            commandInput.focus();
-        } else if (!commandText) {
-            commandInput.value = '';
-            commandInput.placeholder = 'Type your command here...';
-        }
-        sendBtn.disabled = false;
-        await fetchMeetings();
-    }
-
-    function addLearningFeedback(originalCommand, data) {
-        const feedbackHtml = `
-            <div>
-                <p>${data.message}</p>
-                <div style="margin: 10px 0;">
-                    <input type="text" id="correction-input" placeholder="Correct command format: e.g., 'Schedule meeting with John at 3pm'" 
-                           style="width: 70%; padding: 5px; margin-right: 10px;">
-                    <button onclick="submitCorrection('${originalCommand}')" style="padding: 5px 10px;">Teach Me</button>
-                </div>
-                <button onclick="skipLearning()" style="font-size: 12px; opacity: 0.7;">Skip for now</button>
+    <div class="app-container">
+        <!-- Mobile Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-calendar-alt"></i>
+                Meeting Scheduler
             </div>
-        `;
-        addMessage(feedbackHtml, 'bot', true);
-    }
+            <div class="header-actions">
+                <button class="btn-icon" id="sidebar-toggle" aria-label="Toggle sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </header>
 
-    async function submitCorrection(originalCommand) {
-        const correctionInput = document.getElementById('correction-input');
-        const correctedCommand = correctionInput.value.trim();
-        
-        if (!correctedCommand) {
-            alert('Please provide a corrected command format');
-            return;
-        }
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Meetings</h2>
+                <button class="btn-icon" id="sidebar-close" aria-label="Close sidebar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <div id="meetings-list" class="meetings-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <span>Loading meetings...</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
 
-        // Parse the corrected command to extract data
-        const personMatch = correctedCommand.match(/with\s+([\w\s]+?)\s+at/i);
-        const timeMatch = correctedCommand.match(/at\s+([\d: ]+[ap]m|\d{1,2})/i);
-        
-        if (!personMatch || !timeMatch) {
-            alert('Please use format: "Schedule meeting with [name] at [time]"');
-            return;
-        }
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h1 class="chat-title">Meeting Assistant</h1>
+                </div>
+                
+                <div class="messages-container" id="messages-container">
+                    <div class="message bot">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="message-content">
+                            Hello! I'm your meeting assistant. I can help you schedule meetings, check your calendar, and manage your appointments. What would you like to do?
+                        </div>
+                    </div>
+                </div>
 
-        const correctedData = {
-            type: 'schedule',
-            person: personMatch[1].trim(),
-            time: timeMatch[1].trim()
-        };
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <input 
+                            type="text" 
+                            id="command-input" 
+                            class="input-field" 
+                            placeholder="Type your command (e.g., 'Schedule meeting with John at 3pm')"
+                            aria-label="Command input"
+                        >
+                        <button class="btn-primary" id="send-btn" aria-label="Send message">
+                            <i class="fas fa-paper-plane"></i>
+                            <span>Send</span>
+                        </button>
+                        <button class="btn-secondary" id="mic-btn" aria-label="Use voice input">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-        const res = await fetch('/learning/feedback', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                original_command: originalCommand,
-                corrected_data: correctedData
-            })
-        });
+    <!-- Overlay for mobile -->
+    <div class="overlay" id="overlay"></div>
 
-        const result = await res.json();
-        if (result.success) {
-            addMessage(`✅ Thank you! I've learned from your correction. Next time I'll understand "${originalCommand}" better.`, 'bot');
-            correctionInput.value = '';
-            await fetchLearningStats();
+    <script>
+        // Modern JavaScript with ES6+ features
+        class MeetingScheduler {
+            constructor() {
+                this.sidebar = document.getElementById('sidebar');
+                this.overlay = document.getElementById('overlay');
+                this.messagesContainer = document.getElementById('messages-container');
+                this.commandInput = document.getElementById('command-input');
+                this.sendBtn = document.getElementById('send-btn');
+                this.micBtn = document.getElementById('mic-btn');
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.loadMeetings();
+                this.setupSpeechRecognition();
+            }
+
+            setupEventListeners() {
+                // Sidebar controls
+                document.getElementById('sidebar-toggle').addEventListener('click', () => this.toggleSidebar());
+                document.getElementById('sidebar-close').addEventListener('click', () => this.closeSidebar());
+                this.overlay.addEventListener('click', () => this.closeSidebar());
+
+                // Chat functionality
+                this.sendBtn.addEventListener('click', () => this.sendMessage());
+                this.commandInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.sendMessage();
+                });
+
+                // Responsive handling
+                window.addEventListener('resize', () => this.handleResize());
+            }
+
+            toggleSidebar() {
+                this.sidebar.classList.toggle('open');
+                this.overlay.classList.toggle('active');
+            }
+
+            closeSidebar() {
+                this.sidebar.classList.remove('open');
+                this.overlay.classList.remove('active');
+            }
+
+            handleResize() {
+                if (window.innerWidth >= 768) {
+                    this.sidebar.classList.remove('open');
+                    this.overlay.classList.remove('active');
+                }
+            }
+
+            async loadMeetings() {
+                try {
+                    const response = await fetch('/meetings');
+                    const meetings = await response.json();
+                    this.renderMeetings(meetings);
+                } catch (error) {
+                    console.error('Error loading meetings:', error);
+                    this.renderEmptyState();
+                }
+            }
+
+            renderMeetings(meetings) {
+                const container = document.getElementById('meetings-list');
+                
+                if (meetings.length === 0) {
+                    this.renderEmptyState();
+                    return;
+                }
+
+                container.innerHTML = meetings.map(meeting => `
+                    <div class="meeting-card">
+                        <div class="meeting-card-header">
+                            <span class="meeting-person">${meeting.person}</span>
+                            <span class="meeting-time">${meeting.time}</span>
+                        </div>
+                        <div class="meeting-agenda">
+                            Scheduled meeting with ${meeting.person}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            renderEmptyState() {
+                const container = document.getElementById('meetings-list');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-calendar-plus"></i>
+                        </div>
+                        <h3>No meetings scheduled</h3>
+                        <p>Start by scheduling your first meeting!</p>
+                    </div>
+                `;
+            }
+
+            async sendMessage() {
+                const message = this.commandInput.value.trim();
+                if (!message) return;
+
+                // Add user message
+                this.addMessage(message, 'user');
+                this.commandInput.value = '';
+                this.sendBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/schedule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ command: message })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.missing_time) {
+            addMessage(data.message, 'bot');
         } else {
-            addMessage('❌ Failed to save learning. Please try again.', 'bot');
+            this.addMessage(data.message, 'bot');
+            this.speak(data.message);  // Speak the bot response
+            if (data.success) {
+                await this.loadMeetings();
+            }
         }
+    } catch (error) {
+        this.addMessage('Sorry, there was an error processing your request.', 'bot');
+        this.speak('Sorry, there was an error processing your request.');
+    } finally {
+        this.sendBtn.disabled = false;
     }
+}
 
-    function skipLearning() {
-        addMessage("No problem! I'll try to understand better next time.", 'bot');
+// Add speak function for text-to-speech
+speak(text) {
+    if (!('speechSynthesis' in window)) {
+        console.warn('Speech synthesis not supported');
+        return;
     }
-
-    function speakMessage(message) {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(message);
-            window.speechSynthesis.speak(utterance);
-        }
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Select female voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(voice => voice.name.toLowerCase().includes('female') || voice.name.toLowerCase().includes('woman') || voice.name.toLowerCase().includes('zira') || voice.name.toLowerCase().includes('susan'));
+    if (femaleVoice) {
+        utterance.voice = femaleVoice;
     }
+    utterance.lang = 'en-US';
+    window.speechSynthesis.speak(utterance);
+}
 
-    sendBtn.addEventListener('click', async () => {
-        await sendCommand();
-    });
-    commandInput.addEventListener('keydown', async e => {
-        if (e.key === 'Enter') {
-            await sendCommand();
+            addMessage(content, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.innerHTML = sender === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+                
+                this.messagesContainer.appendChild(messageDiv);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+
+            setupSpeechRecognition() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    this.micBtn.style.display = 'none';
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                this.micBtn.addEventListener('click', () => {
+                    this.micBtn.classList.add('listening');
+                    recognition.start();
+                });
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    this.commandInput.value = transcript;
+                    this.sendMessage();
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    this.micBtn.classList.remove('listening');
+                };
+
+                recognition.onend = () => {
+                    this.micBtn.classList.remove('listening');
+                };
+            }
         }
-    });
 
-    sidebarToggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('closed');
-    });
-
-    meetingsTab.addEventListener('click', () => {
-        const isOpen = meetingsDropdown.classList.toggle('open');
-        meetingsTabToggleIcon.textContent = isOpen ? '▲' : '▼';
-    });
-
-    micBtn.addEventListener('click', () => {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            alert('Speech recognition not supported in this browser.');
-            return;
-        }
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-
-        micBtn.classList.add('listening');
-        recognition.start();
-
-        recognition.onresult = (event) => {
-            const speechResult = event.results[0][0].transcript;
-            micBtn.classList.remove('listening');
-            sendCommand(speechResult);
-        };
-
-        recognition.onerror = (event) => {
-            micBtn.classList.remove('listening');
-            alert('Error occurred in speech recognition: ' + event.error);
-        };
-
-        recognition.onend = () => {
-            micBtn.classList.remove('listening');
-        };
-    });
-
-    // Initial load
-    fetchMeetings();
-    fetchLearningStats();
-</script>
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new MeetingScheduler();
+        });
+    </script>
 </body>
 </html>
