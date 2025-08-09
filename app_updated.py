@@ -197,7 +197,39 @@ def delete_meeting(meeting_id):
     conn.close()
     return jsonify({'success': True, 'message': 'Meeting deleted successfully'})
 
-# ... (rest of your code, including Solana tracker, notifications, etc., remains unchanged)
+# Solana tracker in-memory storage (for demo)
+solana_alerts = []
+solana_last_price = None
+
+def get_solana_price():
+    try:
+        print('[Solana] Fetching price from Binance...')
+        resp = requests.get('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT', timeout=5)
+        data = resp.json()
+        price = float(data['price'])
+        print(f'[Solana] Price fetched: {price}')
+        return price
+    except Exception as e:
+        print(f'[Solana] Error fetching price: {e}')
+        return None
+
+@app.route('/solana/price')
+def solana_price():
+    print('[Solana] /solana/price endpoint called')
+    price = get_solana_price()
+    if price is not None:
+        global solana_last_price
+        solana_last_price = price
+    else:
+        print('[Solana] Price fetch failed, returning null')
+    return jsonify({'price': price})
+
+@app.route('/solana/alerts')
+def solana_alerts_list():
+    # Do not expose emails in production! For demo only.
+    return jsonify([
+        {k: v for k, v in alert.items() if k != 'triggered'} for alert in solana_alerts
+    ])
 
 if __name__ == '__main__':
     init_db()
