@@ -206,7 +206,8 @@ def get_solana_price():
         print('[Solana] Fetching price from Binance...')
         resp = requests.get('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT', timeout=5)
         data = resp.json()
-        price = float(data['price'])
+        print(f'[Solana] Binance response: {data}')
+        price = float(data['price']) if 'price' in data else None
         print(f'[Solana] Price fetched: {price}')
         return price
     except Exception as e:
