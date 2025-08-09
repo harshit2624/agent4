@@ -98,3 +98,22 @@ Meeting Scheduler Bot
         reminder_thread.daemon = True
         reminder_thread.start()
         print(f"⏰ Reminder scheduled for {reminder_time.strftime('%I:%M %p')}")
+
+    def send_custom_notification(self, to_email, subject, body):
+        """Send a custom email notification to any recipient"""
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.sender_email
+            msg['To'] = to_email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'plain'))
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server.starttls()
+            server.login(self.sender_email, self.sender_password)
+            server.sendmail(self.sender_email, to_email, msg.as_string())
+            server.quit()
+            print(f"✅ Custom email sent: {subject} to {to_email}")
+            return True
+        except Exception as e:
+            print(f"❌ Custom email failed: {str(e)}")
+            return False

@@ -474,6 +474,35 @@
                 </button>
             </div>
             <div class="sidebar-content">
+                <!-- Solana Tracker Section (Dropdown) -->
+                <div id="solana-tracker" style="margin-bottom: 2rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-hover);">
+                    <h3 id="solana-tracker-toggle" style="font-size: 1rem; font-weight: 600; color: var(--primary-color); margin: 0; padding: 1rem; display: flex; align-items: center; cursor: pointer; user-select: none;">
+                        <i class="fa-brands fa-solana" style="margin-right: 0.5rem;"></i> Solana Price Tracker
+                        <i id="solana-tracker-caret" class="fas fa-chevron-down" style="margin-left: auto; transition: transform 0.2s;"></i>
+                    </h3>
+                    <div id="solana-tracker-content" style="padding: 1rem; border-top: 1px solid var(--border);">
+                        <div style="margin-bottom: 0.5rem;">
+                            <span>Current Price: </span>
+                            <span id="solana-current-price" style="font-weight: bold;">Loading...</span>
+                            <button id="refresh-solana-price" class="btn-icon" style="margin-left: 0.5rem;" title="Refresh"><i class="fas fa-sync"></i></button>
+                        </div>
+                        <form id="solana-alert-form" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <label for="solana-alert-type" style="font-size: 0.9rem;">Alert Type:</label>
+                            <select id="solana-alert-type" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                                <option value="above">Above</option>
+                                <option value="below">Below</option>
+                                <option value="range">Range</option>
+                            </select>
+                            <div id="solana-alert-inputs">
+                                <input type="number" step="0.01" id="solana-alert-price" placeholder="Target Price (USD)" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                            </div>
+                            <input type="email" id="solana-alert-email" placeholder="Your Email" value="harshitvj24@gmail.com" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                            <button type="submit" class="btn-primary" style="margin-top: 0.5rem;">Set Alert</button>
+                        </form>
+                        <div id="solana-alert-status" style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--secondary-color);"></div>
+                        <div id="solana-alerts-list" style="margin-top: 1rem;"></div>
+                    </div>
+                </div>
                 <div id="meetings-list" class="meetings-container">
                     <div class="loading">
                         <div class="spinner"></div>
@@ -527,6 +556,105 @@
     <div class="overlay" id="overlay"></div>
 
     <script>
+        // Solana Tracker Dropdown Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const solanaToggle = document.getElementById('solana-tracker-toggle');
+            const solanaContent = document.getElementById('solana-tracker-content');
+            const solanaCaret = document.getElementById('solana-tracker-caret');
+            let solanaOpen = true;
+            if (solanaToggle && solanaContent && solanaCaret) {
+                solanaToggle.onclick = function() {
+                    solanaOpen = !solanaOpen;
+                    if (solanaOpen) {
+                        solanaContent.style.display = '';
+                        solanaCaret.style.transform = 'rotate(0deg)';
+                    } else {
+                        solanaContent.style.display = 'none';
+                        solanaCaret.style.transform = 'rotate(-90deg)';
+                    }
+                };
+            }
+        });
+        // Solana Tracker Logic
+        async function fetchSolanaPrice() {
+            try {
+                const res = await fetch('/solana/price');
+                const data = await res.json();
+                document.getElementById('solana-current-price').textContent = data.price ? `${data.price}` : 'Error';
+            } catch {
+                document.getElementById('solana-current-price').textContent = 'Error';
+            }
+        }
+        async function fetchSolanaAlerts() {
+            try {
+                const res = await fetch('/solana/alerts');
+                const alerts = await res.json();
+                const listDiv = document.getElementById('solana-alerts-list');
+                if (!alerts.length) {
+                    listDiv.innerHTML = '<div style="color: var(--text-muted); font-size: 0.95em;">No alerts set.</div>';
+                    return;
+                }
+                listDiv.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.3em;">Active Alerts:</div>' + alerts.map(alert => {
+                    if (alert.type === 'range') {
+                        return `<div style="margin-bottom: 0.2em;">Range: <b>${alert.min}</b> - <b>${alert.max}</b> (${alert.email})</div>`;
+                    } else if (alert.type === 'above') {
+                        return `<div style="margin-bottom: 0.2em;">Above: <b>${alert.price}</b> (${alert.email})</div>`;
+                    } else if (alert.type === 'below') {
+                        return `<div style="margin-bottom: 0.2em;">Below: <b>${alert.price}</b> (${alert.email})</div>`;
+                    }
+                }).join('');
+            } catch {
+                document.getElementById('solana-alerts-list').textContent = 'Failed to load alerts.';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSolanaPrice();
+            fetchSolanaAlerts();
+            setInterval(fetchSolanaPrice, 10000);
+            document.getElementById('refresh-solana-price').onclick = fetchSolanaPrice;
+            // Alert type change
+            document.getElementById('solana-alert-type').onchange = function() {
+                const type = this.value;
+                const inputs = document.getElementById('solana-alert-inputs');
+                if (type === 'range') {
+                    inputs.innerHTML = `<input type="number" step="0.01" id="solana-alert-min" placeholder="Min Price (USD)" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 0.2rem;">
+                    <input type="number" step="0.01" id="solana-alert-max" placeholder="Max Price (USD)" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border);">`;
+                } else {
+                    inputs.innerHTML = `<input type="number" step="0.01" id="solana-alert-price" placeholder="Target Price (USD)" style="padding: 0.3rem; border-radius: var(--radius); border: 1px solid var(--border);">`;
+                }
+            };
+            // Alert form submit
+            document.getElementById('solana-alert-form').onsubmit = async function(e) {
+                e.preventDefault();
+                const type = document.getElementById('solana-alert-type').value;
+                const email = document.getElementById('solana-alert-email').value;
+                let payload = { type, email };
+                if (type === 'range') {
+                    payload.min = parseFloat(document.getElementById('solana-alert-min').value);
+                    payload.max = parseFloat(document.getElementById('solana-alert-max').value);
+                } else {
+                    payload.price = parseFloat(document.getElementById('solana-alert-price').value);
+                }
+                const statusDiv = document.getElementById('solana-alert-status');
+                statusDiv.textContent = 'Saving...';
+                try {
+                    const res = await fetch('/solana/alert', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        statusDiv.textContent = 'Alert set successfully!';
+                        fetchSolanaAlerts();
+                    } else {
+                        statusDiv.textContent = data.error || 'Failed to set alert.';
+                    }
+                } catch {
+                    statusDiv.textContent = 'Failed to set alert.';
+                }
+            };
+        });
         // Modern JavaScript with ES6+ features
         class MeetingScheduler {
             constructor() {
@@ -560,6 +688,14 @@
 
                 // Responsive handling
                 window.addEventListener('resize', () => this.handleResize());
+
+                // Add event delegation for "Mark as Done" buttons
+                document.getElementById('meetings-list').addEventListener('click', (event) => {
+                    if (event.target.closest('.mark-as-done-btn') && event.target.closest('.mark-as-done-btn').dataset.meetingId) {
+                        const meetingId = event.target.closest('.mark-as-done-btn').dataset.meetingId;
+                        this.markAsDone(meetingId);
+                    }
+                });
             }
 
             toggleSidebar() {
@@ -591,24 +727,161 @@
             }
 
             renderMeetings(meetings) {
+                this.loadPendingAndCompletedMeetings();
+            }
+
+            async loadPendingAndCompletedMeetings() {
+                try {
+                    const [pendingResponse, completedResponse] = await Promise.all([
+                        fetch('/meetings/pending'),
+                        fetch('/meetings/completed')
+                    ]);
+                    
+                    const pendingMeetings = await pendingResponse.json();
+                    const completedMeetings = await completedResponse.json();
+                    
+                    this.renderMeetingsWithSections(pendingMeetings, completedMeetings);
+                } catch (error) {
+                    console.error('Error loading meetings:', error);
+                    this.renderEmptyState();
+                }
+            }
+
+            renderMeetingsWithSections(pendingMeetings, completedMeetings) {
                 const container = document.getElementById('meetings-list');
                 
-                if (meetings.length === 0) {
+                if (pendingMeetings.length === 0 && completedMeetings.length === 0) {
                     this.renderEmptyState();
                     return;
                 }
 
-                container.innerHTML = meetings.map(meeting => `
-                    <div class="meeting-card">
-                        <div class="meeting-card-header">
-                            <span class="meeting-person">${meeting.person}</span>
-                            <span class="meeting-time">${meeting.time}</span>
+                let html = '';
+                
+                // Pending Meetings Section
+                if (pendingMeetings.length > 0) {
+                    html += `
+                        <div style="margin-bottom: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; color: var(--text-primary); font-size: 1rem; font-weight: 600;">
+                                <i class="fas fa-clock"></i> Pending Meetings (${pendingMeetings.length})
+                            </h3>
+                            ${pendingMeetings.map(meeting => `
+                                <div class="meeting-card" data-id="${meeting.id}">
+                                    <div class="meeting-card-header">
+                                        <span class="meeting-person">${meeting.person}</span>
+                                        <span class="meeting-time">${meeting.time}</span>
+                                    </div>
+                                    <div class="meeting-agenda">
+                                        <strong>Agenda:</strong> ${meeting.agenda ? meeting.agenda : 'No agenda provided'}
+                                    </div>
+                                    <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                        <button class="btn-icon mark-as-done-btn" style="color: var(--secondary-color);" data-meeting-id="${meeting.id}">
+                                            <i class="fas fa-check"></i> Mark as Done
+                                        </button>
+                                        <a href="/meeting/${meeting.id}/edit" class="btn-icon" style="color: var(--primary-color); text-decoration: none;">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                        <div class="meeting-agenda">
-                            Scheduled meeting with ${meeting.person}
+                    `;
+                }
+                
+                // Completed Meetings Section
+                if (completedMeetings.length > 0) {
+                    html += `
+                        <div id="completed-meetings-section">
+                            <h3 id="completed-meetings-toggle" style="margin-bottom: 1rem; color: var(--text-primary); font-size: 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; user-select: none;">
+                                <i class="fas fa-check-circle"></i> 
+                                <span style="margin-left: 0.5rem;">Completed Meetings (${completedMeetings.length})</span>
+                                <i id="completed-meetings-caret" class="fas fa-chevron-down" style="margin-left: auto; transition: transform 0.2s;"></i>
+                            </h3>
+                            <div id="completed-meetings-list">
+                            ${completedMeetings.map(meeting => `
+                                <div class="meeting-card" style="opacity: 0.7; text-decoration: line-through;">
+                                    <div class="meeting-card-header">
+                                        <span class="meeting-person">${meeting.person}</span>
+                                        <span class="meeting-time">${meeting.time}</span>
+                                    </div>
+                                    <div class="meeting-agenda">
+                                        <strong>Agenda:</strong> ${meeting.agenda ? meeting.agenda : 'No agenda provided'}
+                                    </div>
+                                    <div style="margin-top: 0.5rem; text-align: right;">
+                                        <span style="color: var(--secondary-color); font-size: 0.875rem;">
+                                            <i class="fas fa-check"></i> Completed
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }
+                
+                container.innerHTML = html;
+                // Add dropdown toggle for completed meetings
+                setTimeout(() => {
+                    const toggle = document.getElementById('completed-meetings-toggle');
+                    const list = document.getElementById('completed-meetings-list');
+                    const caret = document.getElementById('completed-meetings-caret');
+                    if (toggle && list && caret) {
+                        let open = true;
+                        toggle.onclick = function() {
+                            open = !open;
+                            if (open) {
+                                list.style.display = '';
+                                caret.style.transform = 'rotate(0deg)';
+                            } else {
+                                list.style.display = 'none';
+                                caret.style.transform = 'rotate(-90deg)';
+                            }
+                        };
+                    }
+                }, 0);
+            }
+
+            async markAsDone(meetingId) {
+                // Find the meeting card in the DOM
+                const card = document.querySelector(`.meeting-card[data-id="${meetingId}"]`);
+                if (card) {
+                    card.style.transition = 'opacity 0.7s ease, height 0.7s ease, margin 0.7s ease, padding 0.7s ease';
+                    card.style.opacity = '0';
+                    card.style.height = '0px';
+                    card.style.margin = '0px';
+                    card.style.padding = '0px';
+                }
+                try {
+                    const response = await fetch(`/meetings/${meetingId}/complete`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.addMessage(`✅ Meeting marked as completed!`, 'bot');
+                        this.speak('Meeting marked as completed');
+                        // Wait for the fade-out animation, then reload meetings
+                        setTimeout(() => {
+                            this.loadPendingAndCompletedMeetings();
+                        }, 700);
+                    } else {
+                        this.addMessage(`❌ ${data.error}`, 'bot');
+                        // If error, restore card
+                        if (card) {
+                            card.style.opacity = '';
+                            card.style.height = '';
+                            card.style.margin = '';
+                            card.style.padding = '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error marking meeting as done:', error);
+                    this.addMessage('❌ Error marking meeting as done', 'bot');
+                    if (card) {
+                        card.style.opacity = '';
+                        card.style.height = '';
+                        card.style.margin = '';
+                        card.style.padding = '';
+                    }
+                }
             }
 
             renderEmptyState() {
