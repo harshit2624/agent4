@@ -13,14 +13,25 @@ learning_system = LearningSystem()
 def init_db():
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
+    
+    # Create meetings table with status column
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS meetings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             person TEXT,
             time TEXT,
-            agenda TEXT
+            agenda TEXT,
+            status TEXT DEFAULT 'pending'
         )
     """)
+    
+    # Add status column to existing table if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE meetings ADD COLUMN status TEXT DEFAULT 'pending'")
+    except sqlite3.OperationalError:
+        # Column already exists, ignore
+        pass
+    
     conn.commit()
     conn.close()
 
@@ -136,6 +147,28 @@ def parse_command(command):
 def index():
     return render_template('index.html')
 
+@app.route('/meeting/<int:meeting_id>')
+def meeting_detail(meeting_id):
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, person, time, agenda FROM meetings WHERE id = ?", (meeting_id,))
+    meeting = cursor.fetchone()
+    conn.close()
+    
+    if not meeting:
+        return "Meeting not found", 404
+    
+    id, person, time_str, agenda = meeting
+    meeting_time = datetime.fromisoformat(time_str)
+    
+    return render_template('meeting_edit.html', 
+                         meeting={
+                             'id': id,
+                             'person': person,
+                             'time': meeting_time.strftime('%Y-%m-%dT%H:%M'),
+                             'agenda': agenda or ''
+                         })
+
 @app.route('/schedule', methods=['POST'])
 def schedule_meeting():
     data = request.json
@@ -250,22 +283,252 @@ def schedule_meeting():
 def get_meetings():
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT person, time, agenda FROM meetings ORDER BY time")
+    cursor.execute("SELECT id, person, time, agenda, status FROM meetings ORDER BY time")
     meetings = cursor.fetchall()
     conn.close()
     
     formatted_meetings = []
-    for person, time_str, agenda in meetings:
+    for id, person, time_str, agenda, status in meetings:
         meeting_time = datetime.fromisoformat(time_str)
         meeting_data = {
+            'id': id,
             'person': person,
-            'time': meeting_time.strftime('%I:%M %p, %d %b %Y')
+            'time': meeting_time.strftime('%I:%M %p, %d %b %Y'),
+            'time_iso': time_str,
+            'agenda': agenda or '',
+            'status': status or 'pending'
         }
-        if agenda:
-            meeting_data['agenda'] = agenda
         formatted_meetings.append(meeting_data)
     
     return jsonify(formatted_meetings)
+
+@app.route('/meetings/pending')
+def get_pending_meetings():
+    """Get all pending meetings"""
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, person, time, agenda, status 
+        FROM meetings 
+        WHERE status = 'pending' 
+        ORDER BY time
+    """)
+    meetings = cursor.fetchall()
+    conn.close()
+    
+    formatted_meetings = []
+    for id, person, time_str, agenda, status in meetings:
+        meeting_time = datetime.fromisoformat(time_str)
+        meeting_data = {
+            'id': id,
+            'person': person,
+            'time': meeting_time.strftime('%I:%M %p, %d %b %Y'),
+            'time_iso': time_str,
+            'agenda': agenda or '',
+            'status': status
+        }
+        formatted_meetings.append(meeting_data)
+    
+    return jsonify(formatted_meetings)
+
+@app.route('/meetings/completed')
+def get_completed_meetings():
+    """Get all completed meetings"""
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, person, time, agenda, status 
+        FROM meetings 
+        WHERE status = 'completed' 
+        ORDER BY time
+    """)
+    meetings = cursor.fetchall()
+    conn.close()
+    
+    formatted_meetings = []
+    for id, person, time_str, agenda, status in meetings:
+        meeting_time = datetime.fromisoformat(time_str)
+        meeting_data = {
+            'id': id,
+            'person': person,
+            'time': meeting_time.strftime('%I:%M %p, %d %b %Y'),
+            'time_iso': time_str,
+            'agenda': agenda or '',
+            'status': status
+        }
+        formatted_meetings.append(meeting_data)
+    
+    return jsonify(formatted_meetings)
+
+@app.route('/meetings/<int:meeting_id>/complete', methods=['POST'])
+def mark_meeting_complete(meeting_id):
+    """Mark a meeting as completed"""
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE meetings 
+        SET status = 'completed' 
+        WHERE id = ?
+    """, (meeting_id,))
+    
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({'error': 'Meeting not found'}), 404
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Meeting marked as completed'})
+
+@app.route('/meetings/<int:meeting_id>')
+def get_meeting(meeting_id):
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, person, time, agenda FROM meetings WHERE id = ?", (meeting_id,))
+    meeting = cursor.fetchone()
+    conn.close()
+    
+    if not meeting:
+        return jsonify({'error': 'Meeting not found'}), 404
+    
+    id, person, time_str, agenda = meeting
+    meeting_time = datetime.fromisoformat(time_str)
+    
+    return jsonify({
+        'id': id,
+        'person': person,
+        'time': meeting_time.strftime('%Y-%m-%dT%H:%M'),
+        'agenda': agenda or ''
+    })
+
+@app.route('/meetings/<int:meeting_id>', methods=['PUT'])
+def update_meeting(meeting_id):
+    data = request.json
+    person = data.get('person')
+    time_str = data.get('time')
+    agenda = data.get('agenda', '')
+    
+    if not person or not time_str:
+        return jsonify({'error': 'Person and time are required'}), 400
+    
+    try:
+        meeting_time = datetime.fromisoformat(time_str)
+    except ValueError:
+        return jsonify({'error': 'Invalid time format'}), 400
+    
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE meetings 
+        SET person = ?, time = ?, agenda = ? 
+        WHERE id = ?
+    """, (person, meeting_time.isoformat(), agenda, meeting_id))
+    
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({'error': 'Meeting not found'}), 404
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Meeting updated successfully'})
+
+@app.route('/meetings/<int:meeting_id>', methods=['DELETE'])
+def delete_meeting(meeting_id):
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("DELETE FROM meetings WHERE id = ?", (meeting_id,))
+    
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({'error': 'Meeting not found'}), 404
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Meeting deleted successfully'})
+
+# API routes for meeting update/delete to match frontend
+@app.route('/api/meeting/<int:meeting_id>', methods=['PUT'])
+def api_update_meeting(meeting_id):
+    return update_meeting(meeting_id)
+
+@app.route('/api/meeting/<int:meeting_id>', methods=['DELETE'])
+def api_delete_meeting(meeting_id):
+    return delete_meeting(meeting_id)
+
+@app.route('/api/meeting/<int:meeting_id>/notify-other', methods=['POST'])
+def notify_other_person(meeting_id):
+    data = request.json
+    email = data.get('email')
+    person = data.get('person')
+    agenda = data.get('agenda')
+    time_str = data.get('time')
+    host = data.get('host')
+    if not email:
+        return jsonify({'success': False, 'error': 'Email is required'})
+    # If any of person, agenda, or time is missing, fetch from DB
+    if not (person and agenda is not None and time_str):
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT person, time, agenda FROM meetings WHERE id = ?", (meeting_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return jsonify({'success': False, 'error': 'Meeting not found'})
+        person, time_str, agenda = row
+    host_name = host if host else person
+    try:
+        meeting_time = datetime.fromisoformat(time_str)
+    except Exception:
+        return jsonify({'success': False, 'error': 'Invalid meeting time'})
+    # Send email now
+    subject = f"Meeting Scheduled with {host_name}"
+    body = f"""
+Hello,
+
+You have a meeting scheduled with {host_name}.
+
+Agenda: {agenda or 'No agenda provided'}
+Time: {meeting_time.strftime('%I:%M %p, %d %b %Y')}
+Host: {host_name}
+
+You will also receive a reminder 10 minutes before the meeting.
+
+Best regards,
+Meeting Scheduler Bot
+"""
+    EmailNotifier().send_custom_notification(email, subject, body)
+    # Schedule reminder
+    def send_reminder():
+        now = datetime.now()
+        reminder_time = meeting_time - timedelta(minutes=10)
+        delay = (reminder_time - now).total_seconds()
+        if delay > 0:
+            time.sleep(delay)
+        reminder_subject = f"Meeting Reminder: Meeting with {host_name} in 10 minutes"
+        reminder_body = f"""
+Hello,
+
+This is a reminder for your meeting with {host_name}.
+
+Agenda: {agenda or 'No agenda provided'}
+Time: {meeting_time.strftime('%I:%M %p, %d %b %Y')}
+Host: {host_name}
+
+The meeting starts in 10 minutes.
+
+Best regards,
+Meeting Scheduler Bot
+"""
+        EmailNotifier().send_custom_notification(email, reminder_subject, reminder_body)
+    t = threading.Thread(target=send_reminder)
+    t.daemon = True
+    t.start()
+    return jsonify({'success': True})
 
 @app.route('/learning/stats', methods=['GET'])
 def get_learning_stats():
@@ -310,6 +573,98 @@ def get_failed_commands():
     
     conn.close()
     return jsonify(failed_commands)
+
+@app.route('/meeting/<int:meeting_id>/edit')
+def edit_meeting(meeting_id):
+    conn = sqlite3.connect("meetings.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, person, time, agenda FROM meetings WHERE id = ?", (meeting_id,))
+    meeting = cursor.fetchone()
+    conn.close()
+    if not meeting:
+        return "Meeting not found", 404
+    id, person, time_str, agenda = meeting
+    meeting_time = datetime.fromisoformat(time_str)
+    return render_template('meeting_edit.html', 
+        meeting={
+            'id': id,
+            'person': person,
+            'time': meeting_time.strftime('%Y-%m-%dT%H:%M'),
+            'agenda': agenda or ''
+        }
+    )
+
+import threading
+import time
+import requests
+
+# In-memory Solana alert storage (for demo; use DB for production)
+solana_alerts = []
+solana_last_price = None
+
+def get_solana_price():
+    try:
+        resp = requests.get('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT', timeout=5)
+        data = resp.json()
+        return float(data['price'])
+    except Exception:
+        return None
+
+@app.route('/solana/price')
+def solana_price():
+    price = get_solana_price()
+    if price is not None:
+        global solana_last_price
+        solana_last_price = price
+    return jsonify({'price': price})
+
+@app.route('/solana/alert', methods=['POST'])
+def solana_alert():
+    data = request.json
+    alert_type = data.get('type')
+    email = data.get('email')
+    if not email or not alert_type:
+        return jsonify({'success': False, 'error': 'Email and alert type required'})
+    if alert_type == 'range':
+        min_price = data.get('min')
+        max_price = data.get('max')
+        if min_price is None or max_price is None:
+            return jsonify({'success': False, 'error': 'Min and max price required'})
+        solana_alerts.append({'type': 'range', 'min': min_price, 'max': max_price, 'email': email, 'triggered': False})
+    else:
+        price = data.get('price')
+        if price is None:
+            return jsonify({'success': False, 'error': 'Price required'})
+        solana_alerts.append({'type': alert_type, 'price': price, 'email': email, 'triggered': False})
+    return jsonify({'success': True})
+
+@app.route('/solana/alerts')
+def solana_alerts_list():
+    # Do not expose emails in production! For demo only.
+    return jsonify([
+        {k: v for k, v in alert.items() if k != 'triggered'} for alert in solana_alerts
+    ])
+
+def solana_alert_checker():
+    while True:
+        price = get_solana_price()
+        if price is not None:
+            for alert in solana_alerts:
+                if alert.get('triggered'):
+                    continue
+                if alert['type'] == 'above' and price > alert['price']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is above ${alert["price"]}: Current price ${price}')
+                    alert['triggered'] = True
+                elif alert['type'] == 'below' and price < alert['price']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is below ${alert["price"]}: Current price ${price}')
+                    alert['triggered'] = True
+                elif alert['type'] == 'range' and alert['min'] <= price <= alert['max']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is in your range ${alert["min"]} - ${alert["max"]}: Current price ${price}')
+                    alert['triggered'] = True
+        time.sleep(60)
+
+# Start background checker thread
+threading.Thread(target=solana_alert_checker, daemon=True).start()
 
 if __name__ == '__main__':
     init_db()
