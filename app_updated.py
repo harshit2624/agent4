@@ -32,6 +32,7 @@ def init_db():
         # Column already exists, ignore
         pass
     
+<<<<<<< HEAD
     # Create solana_alerts table for persistent storage
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS solana_alerts (
@@ -46,6 +47,8 @@ def init_db():
         )
     """)
     
+=======
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
     conn.commit()
     conn.close()
 
@@ -612,6 +615,11 @@ import threading
 import time
 import requests
 
+<<<<<<< HEAD
+=======
+# In-memory Solana alert storage (for demo; use DB for production)
+solana_alerts = []
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
 solana_last_price = None
 
 def get_solana_price():
@@ -637,14 +645,18 @@ def solana_alert():
     email = data.get('email')
     if not email or not alert_type:
         return jsonify({'success': False, 'error': 'Email and alert type required'})
+<<<<<<< HEAD
     
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
     
+=======
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
     if alert_type == 'range':
         min_price = data.get('min')
         max_price = data.get('max')
         if min_price is None or max_price is None:
+<<<<<<< HEAD
             conn.close()
             return jsonify({'success': False, 'error': 'Min and max price required'})
         
@@ -665,10 +677,20 @@ def solana_alert():
     
     conn.commit()
     conn.close()
+=======
+            return jsonify({'success': False, 'error': 'Min and max price required'})
+        solana_alerts.append({'type': 'range', 'min': min_price, 'max': max_price, 'email': email, 'triggered': False})
+    else:
+        price = data.get('price')
+        if price is None:
+            return jsonify({'success': False, 'error': 'Price required'})
+        solana_alerts.append({'type': alert_type, 'price': price, 'email': email, 'triggered': False})
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
     return jsonify({'success': True})
 
 @app.route('/solana/alerts')
 def solana_alerts_list():
+<<<<<<< HEAD
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
     
@@ -699,11 +721,18 @@ def solana_alerts_list():
     
     conn.close()
     return jsonify(alerts)
+=======
+    # Do not expose emails in production! For demo only.
+    return jsonify([
+        {k: v for k, v in alert.items() if k != 'triggered'} for alert in solana_alerts
+    ])
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
 
 def solana_alert_checker():
     while True:
         price = get_solana_price()
         if price is not None:
+<<<<<<< HEAD
             conn = sqlite3.connect("meetings.db")
             cursor = conn.cursor()
             
@@ -749,6 +778,21 @@ def solana_alert_checker():
             
             conn.close()
         time.sleep(10)
+=======
+            for alert in solana_alerts:
+                if alert.get('triggered'):
+                    continue
+                if alert['type'] == 'above' and price > alert['price']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is above ${alert["price"]}: Current price ${price}')
+                    alert['triggered'] = True
+                elif alert['type'] == 'below' and price < alert['price']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is below ${alert["price"]}: Current price ${price}')
+                    alert['triggered'] = True
+                elif alert['type'] == 'range' and alert['min'] <= price <= alert['max']:
+                    EmailNotifier().send_custom_notification(alert['email'], f'Solana Price Alert', f'Solana price is in your range ${alert["min"]} - ${alert["max"]}: Current price ${price}')
+                    alert['triggered'] = True
+        time.sleep(60)
+>>>>>>> 0c70400fa145562ce84df59fbbd1fe784c9b5a51
 
 # Start background checker thread
 threading.Thread(target=solana_alert_checker, daemon=True).start()
