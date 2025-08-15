@@ -1,0 +1,53 @@
+// Sidebar controls
+        document
+          .getElementById("sidebar-toggle")
+          .addEventListener("click", () => this.toggleSidebar());
+        document
+          .getElementById("sidebar-close")
+          .addEventListener("click", () => this.closeSidebar());
+        this.overlay.addEventListener("click", () => this.closeSidebar());
+
+        // Chat functionality
+        this.sendBtn.addEventListener("click", () => this.sendMessage());
+        this.commandInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") this.sendMessage();
+        });
+
+        // Responsive handling
+        window.addEventListener("resize", () => this.handleResize());
+      }
+=======
+      setupEventListeners() {
+        // Sidebar controls
+        document
+          .getElementById("sidebar-toggle")
+          .addEventListener("click", () => this.toggleSidebar());
+        document
+          .getElementById("sidebar-close")
+          .addEventListener("click", () => this.closeSidebar());
+        this.overlay.addEventListener("click", () => this.closeSidebar());
+
+        // Chat functionality
+        this.sendBtn.addEventListener("click", () => this.sendMessage());
+        this.commandInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") this.sendMessage();
+        });
+
+        // Responsive handling
+        window.addEventListener("resize", () => this.handleResize());
+
+        // Add event delegation for "Mark as Done" buttons
+        document
+          .getElementById("meetings-list")
+          .addEventListener("click", (event) => {
+            if (
+              event.target.closest(".mark-as-done-btn") &&
+              event.target.closest(".mark-as-done-btn").dataset.meetingId
+            ) {
+              const meetingId = event.target
+                .closest(".mark-as-done-btn")
+                .dataset.meetingId;
+              this.markAsDone(meetingId);
+            }
+          });
+      }

@@ -17,7 +17,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS meetings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             person TEXT,
-            time TEXT
+            time TEXT,
+            status TEXT DEFAULT 'pending',
+            completed_at TIMESTAMP
         )
     """)
     conn.commit()
@@ -184,19 +186,194 @@ def schedule_meeting():
 def get_meetings():
     conn = sqlite3.connect("meetings.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT person, time FROM meetings ORDER BY time")
+    cursor.execute("SELECT id, person, time FROM meetings ORDER BY time")
     meetings = cursor.fetchall()
     conn.close()
     
     formatted_meetings = []
-    for person, time_str in meetings:
+    for meeting_id, person, time_str in meetings:
         meeting_time = datetime.fromisoformat(time_str)
         formatted_meetings.append({
+            'id': meeting_id,
             'person': person,
             'time': meeting_time.strftime('%I:%M %p, %d %b %Y')
         })
     
     return jsonify(formatted_meetings)
+
+@app.route('/api/meeting/<int:meeting_id>', methods=['PUT'])
+def update_meeting(meeting_id):
+    """Update an existing meeting"""
+    try:
+        data = request.json
+        person = data.get('person')
+        time = data.get('time')
+        agenda = data.get('agenda', '')
+        
+        if not person or not time:
+            return jsonify({'success': False, 'error': 'Person and time are required'}), 400
+        
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        
+        # Check if meeting exists
+        cursor.execute("SELECT id FROM meetings WHERE id = ?", (meeting_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Meeting not found'}), 404
+        
+        # Update the meeting
+        cursor.execute("UPDATE meetings SET person = ?, time = ? WHERE id = ?", 
+                       (person, time, meeting_id))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Meeting updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/meeting/<int:meeting_id>', methods=['DELETE'])
+def delete_meeting(meeting_id):
+    """Delete a meeting"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        
+        # Check if meeting exists
+        cursor.execute("SELECT id FROM meetings WHERE id = ?", (meeting_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Meeting not found'}), 404
+        
+        # Delete the meeting
+        cursor.execute("DELETE FROM meetings WHERE id = ?", (meeting_id,))
+        conn.commit()
+        conn.close()
+        
+    return jsonify({'success': True, 'message': 'Meeting deleted successfully'})
+
+@app.route('/meeting/<int:meeting_id>/complete', methods=['POST'])
+def complete_meeting(meeting_id):
+    """Mark a meeting as completed"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        
+        # Check if meeting exists
+        cursor.execute("SELECT id FROM meetings WHERE id = ?", (meeting_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Meeting not found'}), 404
+        
+        # Update the meeting status
+        cursor.execute('UPDATE meetings SET status = "completed", completed_at = CURRENT_TIMESTAMP WHERE id = ?', (meeting_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Meeting marked as completed'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/meetings/completed')
+def get_completed_meetings():
+    """Get all completed meetings"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM meetings WHERE status = "completed" ORDER BY completed_at DESC')
+        meetings = cursor.fetchall()
+        conn.close()
+        
+        formatted_meetings = []
+        for meeting in meetings:
+            meeting_time = datetime.fromisoformat(meeting[2])
+            formatted_meetings.append({
+                'id': meeting[0],
+                'person': meeting[1],
+                'time': meeting_time.strftime('%I:%M %p, %d %b %Y'),
+                'status': meeting[3],
+                'completed_at': meeting[4]
+            })
+        
+        return jsonify(formatted_meetings)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/meetings/pending')
+def get_pending_meetings():
+    """Get all pending meetings"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM meetings WHERE status = "pending" ORDER BY time')
+        meetings = cursor.fetchall()
+        conn.close()
+        
+        formatted_meetings = []
+        for meeting in meetings:
+            meeting_time = datetime.fromisoformat(meeting[2])
+            formatted_meetings.append({
+                'id': meeting[0],
+                'person': meeting[1],
+                'time': meeting_time.strftime('%I:%M %p, %d %b %Y'),
+                'status': meeting[3]
+            })
+        
+        return jsonify(formatted_meetings)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/meeting/<int:meeting_id>')
+def get_meeting(meeting_id):
+    """Get a single meeting by ID"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, person, time FROM meetings WHERE id = ?", (meeting_id,))
+        meeting = cursor.fetchone()
+        conn.close()
+        
+        if not meeting:
+            return jsonify({'success': False, 'error': 'Meeting not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'meeting': {
+                'id': meeting[0],
+                'person': meeting[1],
+                'time': meeting[2]
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/meeting/<int:meeting_id>/edit')
+def edit_meeting_page(meeting_id):
+    """Render the meeting edit page"""
+    try:
+        conn = sqlite3.connect("meetings.db")
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, person, time FROM meetings WHERE id = ?", (meeting_id,))
+        meeting = cursor.fetchone()
+        conn.close()
+        
+        if not meeting:
+            return "Meeting not found", 404
+        
+        # Format time for datetime-local input
+        meeting_time = datetime.fromisoformat(meeting[2])
+        formatted_time = meeting_time.strftime('%Y-%m-%dT%H:%M')
+        
+        return render_template('meeting_edit.html', 
+                             meeting={
+                                 'id': meeting[0],
+                                 'person': meeting[1],
+                                 'time': formatted_time
+                             })
+    except Exception as e:
+        return str(e), 500
 
 if __name__ == '__main__':
     init_db()
